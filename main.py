@@ -11,16 +11,17 @@ import requests
 import yaml
 import logging
 
-logger=logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-formatter=logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger.addHandler(logging.StreamHandler())
+
 
 class Notion:
     def __init__(self, token, database_id):
         self.notion = Client(auth=token)
         self.database_id = database_id
-    
+
     def get_page_id(self, data: dict) -> list:
         rich_text_node = data['properties'].get('Article', {})
         mentions = []
@@ -30,7 +31,7 @@ class Notion:
             if i['type'] == 'mention':
                 mentions.append(i['mention']['page']['id'])
         return mentions[0] if len(mentions) > 0 else None
-    
+
     def title(self, data: dict) -> str:
         title_node = data['properties'].get('Name', {})
         title = ''
@@ -39,13 +40,13 @@ class Notion:
         for i in title_node['title']:
             title += i['plain_text']
         return title
-    
+
     def is_publish(self, data: dict) -> bool:
         return data['properties'].get('IsPublish', {}).get('checkbox', False)
 
     def need_update(self, data: dict) -> bool:
         return data['properties'].get('NeedUpdate', {}).get('checkbox', False)
-    
+
     def md_filename(self, data: dict) -> str:
         rich_text_node = data['properties'].get('MDFilename', {})
         file_name = ''
@@ -54,29 +55,44 @@ class Notion:
         for i in rich_text_node['rich_text']:
             file_name += i['plain_text']
         return file_name
-    
+
+    # 获取描述
+    def description(self, data: dict) -> str:
+        rich_text_node = data['properties'].get('description', {})
+        file_name = ''
+        if rich_text_node['type'] != 'rich_text':
+            raise TypeError("this field is not a rich text")
+        for i in rich_text_node['rich_text']:
+            file_name += i['plain_text']
+        return file_name
+
+    # 获取文章图片链接
+    def ArticleImageUrl(self, data: dict) -> str:
+        return data['properties'].get('ArticleImageUrl', {}).get('url', '')
+
     def category(self, data: dict) -> str:
         return data['properties'].get('Category', {}).get('select', {}).get('name', '')
-    
+
     def tags(self, data: dict) -> list:
         tags_ = []
         tags_node = data['properties'].get('Tags', {}).get('multi_select', [])
         for i in tags_node:
             tags_.append(i['name'])
         return tags_
-    
+
     def create_at(self, data: dict) -> str:
         return data['properties'].get('CreateAt', {}).get('created_time', '')
 
     def update_at(self, data: dict) -> str:
         return data['properties'].get('UpdateAt', {}).get('last_edited_time', '')
-    
+
     def publish(self, data: dict) -> bool:
         page_id = data['id']
         self.notion.pages.update(page_id, properties={
-            "IsPublish": { "checkbox": True },
-            "NeedUpdate": { "checkbox": False }
+            "IsPublish": {"checkbox": True},
+            "NeedUpdate": {"checkbox": False}
         })
+        return True
 
     def items_changed(self):
         '''获取需要更改的项'''
@@ -98,12 +114,13 @@ class Notion:
         })
         return data.get('results') or []
 
+
 class ImgStore:
     def __init__(self, img_data, img_ext, **kwargs):
         self.img_ext = img_ext
         self.img_data = img_data
         self.kwargs = kwargs
-    
+
     def get_md5(self) -> str:
         md5hash = hashlib.md5(self.img_data)
         return md5hash.hexdigest()
@@ -111,8 +128,10 @@ class ImgStore:
     def store(self):
         raise NotImplementedError
 
+
 class ImgStoreRemoteGithub(ImgStore):
     '''将图片上传到github图床'''
+
     def get_store_path(self, path) -> str:
         md5str = self.get_md5()
         return os.path.join(path, f'{md5str[:2]}/{md5str[2:4]}/{md5str}{self.img_ext}').replace('\\', '/')
@@ -144,15 +163,17 @@ class ImgStoreRemoteGithub(ImgStore):
             )
         return f'https://raw.githubusercontent.com/{repo}/{branch}/{store_path}'
 
+
 class ImgStoreLocal(ImgStore):
     '''将图片保存在仓库内'''
+
     def get_img_filename(self):
         md5str = self.get_md5()
         return f'{md5str}{self.img_ext}'
 
     def get_img_path(self, path) -> str:
         return os.path.join(path, self.get_img_filename())
-    
+
     def sotre(self):
         store_path_prefix = self.kwargs['store_path_prefix']
         url_path_prefix = self.kwargs['url_path_prefix']
@@ -163,15 +184,16 @@ class ImgStoreLocal(ImgStore):
             f.write(self.img_data)
         return self.get_img_path(self, url_path_prefix)
 
+
 class ImgHandler:
     '''图片处理
-    
+
     Attributes:
         markdown_text: markdown文本
         img_store_type： img储存类型：local, github
     '''
     pattern = re.compile(r'^(!\[[^\]]*\]\((.*?)\s*("(?:.*[^"])")?\s*\))', re.MULTILINE)
-    
+
     exclude_pattern = re.compile(r'^https://kroki.io/')
 
     def __init__(self, markdown_text, img_store_type, **kwargs):
@@ -182,14 +204,14 @@ class ImgHandler:
             self.img_handler_cls = ImgStoreLocal
         elif img_store_type == 'github':
             self.img_handler_cls = ImgStoreRemoteGithub
-    
+
     def get_ext_from_imglink(self, imglink):
         url_path = urlparse(imglink).path
         return os.path.splitext(url_path)[1]
-    
+
     def get_img_data_from_url(self, url):
         return requests.get(url).content
-    
+
     def is_exclude(self, imglink):
         if self.exclude_pattern.search(imglink):
             return True
@@ -208,16 +230,29 @@ class ImgHandler:
             self.markdown_text = self.markdown_text.replace(match_text, img_text)
         return self.markdown_text
 
+
 def get_markdown_with_yaml_header(page_node: dict, article_content: str, notion: Notion):
     yaml_header = {
         'title': notion.title(page_node),
         'date': notion.create_at(page_node),
-        'showToc': True,
+        'description': notion.description(page_node),
+        'draft': not notion.is_publish(page_node),
+        'hideToc': False,
+        'enableToc': True,
+        'tocPosition': 'outer',
+        'author': 'Victor',
+        'authorEmoji': '👻',
+        'image': notion.ArticleImageUrl(page_node),
+        'plantuml': True,
+        'libraries': ['katex', 'mathjax'],
+        # 'showToc': True,
         'tags': notion.tags(page_node),
+        'series': '',
         'categories': [notion.category(page_node), ],
     }
-    header_text = yaml.dump(yaml_header, allow_unicode=True)
+    header_text = yaml.dump(yaml_header, allow_unicode=True, default_flow_style=False, sort_keys=False)
     return f'---\n{header_text}\n---\n\n\n\n{article_content}'
+
 
 def save_markdown_file(path_prefix: str, content: str, filename: str):
     filename = filename.strip()
@@ -228,6 +263,7 @@ def save_markdown_file(path_prefix: str, content: str, filename: str):
     md_filepath = os.path.join(os.getcwd(), path_prefix, filename)
     with open(md_filepath, 'w+', encoding='utf-8') as f:
         f.write(content)
+
 
 def github_action_env(key):
     return f'INPUT_{key}'.upper()
