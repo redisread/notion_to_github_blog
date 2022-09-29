@@ -236,7 +236,7 @@ def get_markdown_with_yaml_header(page_node: dict, article_content: str, notion:
         'title': notion.title(page_node),
         'date': notion.create_at(page_node),
         'description': notion.description(page_node),
-        'draft': not notion.is_publish(page_node),
+        'draft': False,
         'hideToc': False,
         'enableToc': True,
         'tocPosition': 'outer',
