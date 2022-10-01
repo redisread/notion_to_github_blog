@@ -305,7 +305,7 @@ def main():
         logger.info(f'generate and save article <<{notion.title(page_node)}>>...')
         markdown_with_header = get_markdown_with_yaml_header(page_node, markdown_text, notion)
         # 保存markdown到指定目录
-        save_markdown_file(md_store_path_prefix, markdown_with_header, notion.md_filename(page_node))
+        save_markdown_file(md_store_path_prefix + '/' + notion.category(page_node), markdown_with_header, notion.md_filename(page_node))
         # 更新notion中的对应项
         logger.info('update page property for article <<{notion.title(page_node)}>>...')
         notion.publish(page_node)
