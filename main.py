@@ -244,7 +244,7 @@ def get_markdown_with_yaml_header(page_node: dict, article_content: str, notion:
         'authorEmoji': '👻',
         'image': notion.ArticleImageUrl(page_node),
         'plantuml': True,
-        'libraries': ['katex', 'mathjax'],
+        'libraries': ['katex', 'mathjax', 'chart', 'flowchartjs', 'mermaid'],
         # 'showToc': True,
         'tags': notion.tags(page_node),
         'series': '',
