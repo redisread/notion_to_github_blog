@@ -304,7 +304,7 @@ def main():
         # 将page转化为markdown
         logger.info(f'parse <<{notion.title(page_node)}>>...')
 
-        if use_js_notion_md_sdk and os.path.exists(js_script_filename):
+        if use_js_notion_md_sdk:
             page_url_id = notion.get_page_url_id(page_node).split('/')[-1]
             logger.info("page_url_id: " + page_url_id)
             nodejs = os.popen('node {} -u {}'.format(js_script_filename, page_url_id))
