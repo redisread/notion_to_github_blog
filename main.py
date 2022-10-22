@@ -291,7 +291,7 @@ def main():
     md_store_path_prefix = os.getenv(github_action_env('MD_STORE_PATH_PREFIX')) or 'content/posts' # 保存markdown文件的目录
     # 是否使用JS做转换
     use_js_notion_md_sdk = True
-    js_script_filename = "notion_to_md_cli.js"
+    js_script_filename = "/notion_to_md_cli.js"
 
     notion = Notion(notion_token, notion_database_id)
     page_nodes = notion.items_changed()
