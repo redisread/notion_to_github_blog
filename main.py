@@ -32,6 +32,17 @@ class Notion:
                 mentions.append(i['mention']['page']['id'])
         return mentions[0] if len(mentions) > 0 else None
 
+    # 获取页面URL的pageId
+    def get_page_url_id(self, data: dict) -> list:
+        rich_text_node = data['properties'].get('Article', {})
+        mentions = []
+        if rich_text_node['type'] != 'rich_text':
+            raise TypeError("this field is not a rich text")
+        for i in rich_text_node['rich_text']:
+            if i['type'] == 'mention':
+                mentions.append(i['href'])
+        return mentions[0] if len(mentions) > 0 else None
+
     def title(self, data: dict) -> str:
         title_node = data['properties'].get('Name', {})
         title = ''
@@ -278,6 +289,9 @@ def main():
     img_store_github_repo = os.getenv(github_action_env('IMG_STORE_GITHUB_REPO'))
     img_store_github_branch = os.getenv(github_action_env('IMG_STORE_GITHUB_BRANCH'))
     md_store_path_prefix = os.getenv(github_action_env('MD_STORE_PATH_PREFIX')) or 'content/posts' # 保存markdown文件的目录
+    # 是否使用JS做转换
+    use_js_notion_md_sdk = True
+    js_script_filename = "notion_to_md_cli.js"
 
     notion = Notion(notion_token, notion_database_id)
     page_nodes = notion.items_changed()
@@ -289,7 +303,16 @@ def main():
         page_id = notion.get_page_id(page_node)
         # 将page转化为markdown
         logger.info(f'parse <<{notion.title(page_node)}>>...')
-        markdown_text = NotionToMarkdown(notion_token, page_id).parse()
+
+        if use_js_notion_md_sdk and os.path.exists(js_script_filename):
+            page_url_id = notion.get_page_url_id(page_node).split('/')[-1]
+            logger.info("page_url_id: " + page_url_id)
+            nodejs = os.popen('node {} -u {}'.format(js_script_filename, page_url_id))
+            markdown_text = nodejs.read()
+            nodejs.close()
+        else:
+            markdown_text = NotionToMarkdown(notion_token, page_id).parse()
+
         # 提取markdown内的图片，放入自己的图床替换链接
         logger.info(f'replace img link in article <<{notion.title(page_node)}>>...')
         img_store_kwargs = {
