@@ -59,6 +59,7 @@ class Notion:
         return data['properties'].get('NeedUpdate', {}).get('checkbox', False)
 
     def md_filename(self, data: dict) -> str:
+        return self.uid(data)
         rich_text_node = data['properties'].get('MDFilename', {})
         file_name = ''
         if rich_text_node['type'] != 'rich_text':
@@ -66,6 +67,11 @@ class Notion:
         for i in rich_text_node['rich_text']:
             file_name += i['plain_text']
         return file_name
+
+    # 获取uid（创建时间戳）
+    def uid(self, data: dict) -> str:
+        uid_node = data['properties'].get('UID', {})
+        return uid_node['formula']['string'] or ''
 
     # 获取描述
     def description(self, data: dict) -> str:
